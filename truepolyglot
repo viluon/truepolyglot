@@ -75,6 +75,8 @@ def main():
                         help='PDF input file')
     parser.add_argument('--zipfile', dest='zipfile',
                         help='ZIP input file')
+    parser.add_argument('--luafile', dest='luafile',
+                        help='Lua input file')
     parser.add_argument('--payload1file', dest='payload1file',
                         help='Payload 1 input file')
     parser.add_argument('--payload2file', dest='payload2file',
@@ -114,7 +116,7 @@ def main():
     if args.format[0] == "pdfzip":
         p = Pdf(args.pdffile)
         z = Zip(args.zipfile)
-        a = PolyglotPdfZip(p, z)
+        a = PolyglotPdfZip(p, z, args.luafile)
     if args.format[0] == "zippdf":
         p = Pdf(args.pdffile)
         z = Zip(args.zipfile)

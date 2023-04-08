@@ -50,24 +50,30 @@ class PolyglotPdfZip():
     from PdfFileTransformer import Pdf
     from ZipFileTransformer import Zip
 
-    def __init__(self, Pdf, Zip):
+    def __init__(self, Pdf, Zip, luaFilename):
         self.buffer = bytearray()
         self.pdf = Pdf
         self.zip = Zip
+        self.lua = bytearray()
+        if luaFilename is not None:
+            with open(luaFilename, "rb") as f:
+                self.lua = f.read()
         self.buffer = bytearray()
 
     def generate(self):
+        lua_buffer = self.lua + bytearray(b'--[======[')
+
         k2_stream = self.zip.buffer[:self.zip.end_of_data]
         size_k2_stream = len(k2_stream)
         self.pdf.insert_new_obj_stream_at_start(k2_stream)
-        offset_k2_stream = self.pdf.get_first_stream_offset()
+        offset_k2_stream = len(lua_buffer) + self.pdf.get_first_stream_offset()
 
         k4_stream = self.zip.buffer[self.zip.central_dir_file_header:]
         size_k4_stream = len(k4_stream)
         self.pdf.insert_new_obj_stream_at_end(k4_stream)
-        offset_k4_stream = self.pdf.get_last_stream_offset()
+        offset_k4_stream = len(lua_buffer) + self.pdf.get_last_stream_offset()
 
-        pdf_buffer = self.pdf.get_build_buffer()
+        pdf_buffer = lua_buffer + self.pdf.get_build_buffer() + bytearray(b']======]')
 
         j1 = pdf_buffer[0:offset_k2_stream]
         j2 = pdf_buffer[offset_k2_stream + size_k2_stream:offset_k4_stream]
