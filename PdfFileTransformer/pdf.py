@@ -30,7 +30,7 @@ For more information, please refer to <http://unlicense.org/>
 import logging
 import re
 import tempfile
-from .PyPDF2 import PdfFileWriter, PdfFileReader
+from .pypdf import PdfWriter, PdfReader
 
 
 class Pdf:
@@ -59,19 +59,19 @@ class Pdf:
         filename_output = tempfile.mktemp()
         logging.info("Use " + filename_output + " for normalisation output")
         f_ouput = open(filename_output, "wb")
-        writer = PdfFileWriter()
-        reader = PdfFileReader(f_input)
-        info = reader.getDocumentInfo()
+        writer = PdfWriter()
+        reader = PdfReader(f_input)
+        info = reader.metadata
         if info.producer is not None:
-            writer.addMetadata({u'/Producer': info.producer})
+            writer.add_metadata({u'/Producer': info.producer})
         else:
-            writer.addMetadata({u'/Producer': u'TruePolyglot'})
+            writer.add_metadata({u'/Producer': u'TruePolyglot'})
         if info.creator is not None:
-            writer.addMetadata({u'/Creator': info.creator})
+            writer.add_metadata({u'/Creator': info.creator})
         else:
-            writer.addMetadata({u'/Creator': u'TruePolyglot'})
-        writer.appendPagesFromReader(reader)
-        writer.setHeader(pdf_header)
+            writer.add_metadata({u'/Creator': u'TruePolyglot'})
+        writer.append(reader)
+        writer.pdf_header = pdf_header
         writer.write(f_ouput)
         f_input.close()
         f_ouput.close()
