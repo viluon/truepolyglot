@@ -27,11 +27,13 @@ OTHER DEALINGS IN THE SOFTWARE.
 For more information, please refer to <http://unlicense.org/>
 """
 
-import logging
+import logging as Logging
 import re
 import tempfile
-from .pypdf import PdfWriter, PdfReader
+from PyPDF2 import PdfFileWriter, PdfFileReader
+from PyPDF2.utils import PdfReadError
 
+logging = Logging.getLogger("pdf")
 
 class Pdf:
 
@@ -56,29 +58,27 @@ class Pdf:
         f_input = open(self.filename, "rb")
         pdf_header = f_input.read(8)
         f_input.seek(0)
-        filename_output = tempfile.mktemp()
-        logging.info("Use " + filename_output + " for normalisation output")
-        f_ouput = open(filename_output, "wb")
-        writer = PdfWriter()
-        reader = PdfReader(f_input)
-        info = reader.metadata
-        if info.producer is not None:
-            writer.add_metadata({u'/Producer': info.producer})
-        else:
-            writer.add_metadata({u'/Producer': u'TruePolyglot'})
-        if info.creator is not None:
-            writer.add_metadata({u'/Creator': info.creator})
-        else:
-            writer.add_metadata({u'/Creator': u'TruePolyglot'})
-        writer.append(reader)
-        writer.pdf_header = pdf_header
-        writer.write(f_ouput)
+        f_output = tempfile.TemporaryFile()
+        writer = PdfFileWriter()
+        reader = PdfFileReader(f_input)
+        info = reader.getDocumentInfo()
+        logging.info("Document info:" + str(info))
+        writer.addMetadata(info)
+        if info.producer is None:
+            writer.addMetadata({u'/Producer': u'TruePolyglot'})
+        elif info.creator is None:
+            writer.addMetadata({u'/Creator': u'TruePolyglot'})
+        try:
+            writer.cloneReaderDocumentRoot(reader)
+            writer.write(f_output)
+        except PdfReadError as e:
+            logging.error("The PDF appears to be malformed. Try running it through qpdf.")
+            raise e
         f_input.close()
-        f_ouput.close()
-        f_norm = open(filename_output, "rb")
-        self.buffer = bytearray(f_norm.read())
+        f_output.seek(0)
+        self.buffer = bytearray(f_output.read())
         self.size = len(self.buffer)
-        f_norm.close()
+        f_output.close()
 
     def check_pdf_header(self):
         if self.buffer[0:5] == b"%PDF-":
@@ -319,7 +319,7 @@ class Pdf:
         for i in range(len(self.objects)):
             self.translation_table[(self.objects[i][0],
                                     self.objects[i][1])] = i + 1
-        logging.info(self.translation_table)
+        logging.debug(self.translation_table)
 
     def replace_ref(self, ibuffer):
         '''

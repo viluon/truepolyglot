@@ -31,37 +31,56 @@ import logging
 
 '''
     |-------------------------------|    -
-    |---------- Payload 1 ----------K1   | J1
+    |--------- PDF Header ----------K1   | J1
     |-------------------------------|    -
-    |---- ZIP Local File Header ----K2   |
+    |----- PDF OBJ 1 = ZIP Data ----K2   |
     |-------------------------------|    -
-    |---------- Payload 2-----------K3   | J2
+    |---- Original PDF Ojbects -----K3   | J2
     |-------------------------------|    -
-    |---- ZIP Central Directory ----K4   |
+    |--- Last OBJ = End Zip Data ---K4   |
     |-------------------------------|    |
-    |--- End of Central Directory --K5   |
+    |---------- Xref Table ---------|    |
+    |-------------------------------K5   |
+    |----------- Trailer -----------|    |
     |-------------------------------|    |
 '''
 
 
-class PolyglotZipAny():
-    from ZipFileTransformer import Zip
+class PolyglotPdfZip():
+    from Truepolyglot.PdfFileTransformer import Pdf
+    from Truepolyglot.ZipFileTransformer import Zip
 
-    def __init__(self, Zip, payload1filename, payload2filename):
+    def __init__(self, Pdf, Zip, luaFilename):
         self.buffer = bytearray()
+        self.pdf = Pdf
         self.zip = Zip
-        self.payload1 = bytearray()
-        if payload1filename is not None:
-            with open(payload1filename, "rb") as f:
-                self.payload1 = f.read()
-        self.payload2 = bytearray()
-        if payload2filename is not None:
-            with open(payload2filename, "rb") as f:
-                self.payload2 = f.read()
+        self.lua = bytearray()
+        if luaFilename is not None:
+            with open(luaFilename, "rb") as f:
+                self.lua = f.read()
+        self.buffer = bytearray()
 
     def generate(self):
-        self.zip.add_data_to_file(self.payload1, self.payload2, True)
-        self.buffer = self.zip.buffer
+        lua_buffer = self.lua + bytearray(b'--[======[')
+
+        k2_stream = self.zip.buffer[:self.zip.end_of_data]
+        size_k2_stream = len(k2_stream)
+        self.pdf.insert_new_obj_stream_at_start(k2_stream)
+        offset_k2_stream = len(lua_buffer) + self.pdf.get_first_stream_offset()
+
+        k4_stream = self.zip.buffer[self.zip.central_dir_file_header:]
+        size_k4_stream = len(k4_stream)
+        self.pdf.insert_new_obj_stream_at_end(k4_stream)
+        offset_k4_stream = len(lua_buffer) + self.pdf.get_last_stream_offset()
+
+        pdf_buffer = lua_buffer + self.pdf.get_build_buffer() + bytearray(b']======]')
+
+        j1 = pdf_buffer[0:offset_k2_stream]
+        j2 = pdf_buffer[offset_k2_stream + size_k2_stream:offset_k4_stream]
+        self.zip.add_data_to_file(j1, j2, True)
+
+        k5 = pdf_buffer[offset_k4_stream + size_k4_stream:]
+        self.buffer = self.zip.buffer + k5
 
     def write(self, filename):
         fd = open(filename, "wb")
